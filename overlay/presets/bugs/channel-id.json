@@ -1,0 +1,9 @@
+{
+  "name": "channel-id",
+  "text": "TLTV",
+  "style": {
+    "position": "top-right",
+    "fontsize": 18,
+    "fontcolor": "#ffffff"
+  }
+}

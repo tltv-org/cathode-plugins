@@ -1,0 +1,15 @@
+{
+  "name": "default",
+  "description": "Default ticker with placeholder messages",
+  "messages": [
+    "Welcome to TLTV — Television Like Television",
+    "Programming continues after these messages",
+    "Visit tltv.io for more information"
+  ],
+  "interval": 10,
+  "style": {
+    "position": "bottom-center",
+    "fontsize": 24,
+    "fontcolor": "#ffffff"
+  }
+}

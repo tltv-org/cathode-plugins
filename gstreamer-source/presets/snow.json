@@ -1,0 +1,7 @@
+{
+    "name": "snow",
+    "description": "Static/snow pattern with white noise — off-air look",
+    "video_pattern": "snow",
+    "audio_wave": "white-noise",
+    "audio_volume": 0.05
+}

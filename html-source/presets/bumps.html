@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+    background: #000;
+  }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+
+<!-- Standalone defaults (used when template params are not provided) -->
+<script>
+window._cfg = {
+  DURATION: 30,
+  CARDS: [
+    {text: "CHANNEL ONE", duration: 5, position: "center"},
+    {text: "[ADULT SWIM]", duration: 5, position: "bottom-right"},
+    {text: "WE'LL BE\nRIGHT BACK", duration: 5, position: "center"}
+  ],
+  GRAIN: true,
+  FADE: true,
+  FONT_SIZE: 120
+};
+</script>
+
+<!-- Template overrides (substituted by html-source plugin when params
+     are provided; parse-fails silently in standalone mode) -->
+<script>
+window._cfg.DURATION  = {{DURATION}};
+window._cfg.CARDS     = {{CARDS_JSON}};
+window._cfg.GRAIN     = {{GRAIN}};
+window._cfg.FADE      = {{FADE}};
+window._cfg.FONT_SIZE = {{FONT_SIZE}};
+</script>
+
+<script>
+(function() {
+  // ── Configuration ─────────────────────────────────────────────────────
+  var DURATION  = window._cfg.DURATION;
+  var CARDS     = window._cfg.CARDS;
+  var GRAIN     = window._cfg.GRAIN;
+  var FADE      = window._cfg.FADE;
+  var FONT_SIZE = window._cfg.FONT_SIZE;
+
+  var canvas = document.getElementById('c');
+  var ctx    = canvas.getContext('2d', { alpha: false });
+  var W = 1920, H = 1080;
+  var startTime = Date.now();
+
+  // Total content duration derived from card timings.
+  var totalCardDur = CARDS.reduce(function(s, c) {
+    return s + (c.duration || 0);
+  }, 0);
+
+  // ── Position mapping ──────────────────────────────────────────────────
+  // Maps a named position to anchor coordinates and text alignment.
+  // Nine positions in a 3x3 grid with comfortable margins.
+  function posToAnchor(pos) {
+    switch (pos || 'center') {
+      case 'top-left':     return { ax: 0.08, ay: 0.12, align: 'left',   v: 'top'    };
+      case 'top':          return { ax: 0.50, ay: 0.12, align: 'center', v: 'top'    };
+      case 'top-right':    return { ax: 0.92, ay: 0.12, align: 'right',  v: 'top'    };
+      case 'left':         return { ax: 0.08, ay: 0.50, align: 'left',   v: 'middle' };
+      case 'right':        return { ax: 0.92, ay: 0.50, align: 'right',  v: 'middle' };
+      case 'bottom-left':  return { ax: 0.08, ay: 0.88, align: 'left',   v: 'bottom' };
+      case 'bottom':       return { ax: 0.50, ay: 0.88, align: 'center', v: 'bottom' };
+      case 'bottom-right': return { ax: 0.92, ay: 0.88, align: 'right',  v: 'bottom' };
+      default:             return { ax: 0.50, ay: 0.50, align: 'center', v: 'middle' };
+    }
+  }
+
+  // ── Find active card at time t ────────────────────────────────────────
+  // Walks through cards accumulating durations.  Returns the card that
+  // contains time t, or null if past all cards.
+  function activeCard(t) {
+    var acc = 0;
+    for (var i = 0; i < CARDS.length; i++) {
+      var d = CARDS[i].duration || 0;
+      if (t < acc + d) {
+        return {
+          idx:    i,
+          localT: t - acc,
+          start:  acc,
+          end:    acc + d,
+          card:   CARDS[i]
+        };
+      }
+      acc += d;
+    }
+    return null;
+  }
+
+  // ── Word wrap ─────────────────────────────────────────────────────────
+  // Splits text into lines that fit within maxW pixels.
+  function wrapText(text, maxW) {
+    var words = (text || '').split(/\s+/).filter(Boolean);
+    if (!words.length) return [''];
+    var lines = [];
+    var line  = words[0];
+    for (var i = 1; i < words.length; i++) {
+      var test = line + ' ' + words[i];
+      if (ctx.measureText(test).width <= maxW) {
+        line = test;
+      } else {
+        lines.push(line);
+        line = words[i];
+      }
+    }
+    lines.push(line);
+    return lines;
+  }
+
+  // ── Film grain overlay ────────────────────────────────────────────────
+  // Sparse grain (~1800 random dots) at low opacity for analog film feel.
+  function drawGrain() {
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    for (var i = 0; i < 1800; i++) {
+      var x = Math.random() * W;
+      var y = Math.random() * H;
+      var a = Math.random() * 0.6;
+      var s = Math.random() * 2 + 0.5;
+      ctx.fillStyle = 'rgba(255,255,255,' + a + ')';
+      ctx.fillRect(x, y, s, s);
+    }
+    ctx.restore();
+  }
+
+  // ── Main render function ──────────────────────────────────────────────
+  function drawFrame(t) {
+    // Black background — always start fresh.
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    var active = activeCard(t);
+    if (!active) return;  // Past all cards — stay black.
+
+    var text   = active.card.text || '';
+    var anchor = posToAnchor(active.card.position);
+
+    // Text rendering setup.
+    var weight = 700;
+    var lineH  = 1.18;
+    ctx.fillStyle = '#fff';
+
+    // Auto-shrink: reduce font size until text fits within 90% canvas width.
+    var maxW  = W * 0.90;
+    var size  = FONT_SIZE;
+    var lines;
+    for (var tries = 0; tries < 12; tries++) {
+      ctx.font = weight + ' ' + size + 'px "Helvetica Neue", Arial, sans-serif';
+      lines = wrapText(text, maxW);
+      var widest = 0;
+      for (var j = 0; j < lines.length; j++) {
+        var lw = ctx.measureText(lines[j]).width;
+        if (lw > widest) widest = lw;
+      }
+      if (widest <= maxW) break;
+      size -= 6;
+      if (size < 18) break;
+    }
+
+    // Vertical layout: position the text block relative to the anchor.
+    var blockH  = lines.length * size * lineH;
+    var anchorX = anchor.ax * W;
+    var anchorY = anchor.ay * H;
+
+    ctx.textAlign    = anchor.align;
+    ctx.textBaseline = 'middle';
+
+    var yStart;
+    if      (anchor.v === 'top')    yStart = anchorY;
+    else if (anchor.v === 'bottom') yStart = anchorY - blockH;
+    else                            yStart = anchorY - (blockH / 2);
+
+    // Fade in/out between cards (300ms crossfade).
+    if (FADE) {
+      var fadeT = 0.3;
+      var inA   = Math.min(1, active.localT / fadeT);
+      var outA  = Math.min(1, (active.end - t) / fadeT);
+      ctx.globalAlpha = Math.max(0, Math.min(1, Math.min(inA, outA)));
+    }
+
+    // Draw each wrapped line.
+    var y = yStart + (size * lineH / 2);
+    for (var k = 0; k < lines.length; k++) {
+      ctx.fillText(lines[k], anchorX, y);
+      y += size * lineH;
+    }
+    ctx.globalAlpha = 1;
+
+    // Film grain (drawn on top of text).
+    if (GRAIN) drawGrain();
+  }
+
+  // ── Animation loop ────────────────────────────────────────────────────
+  function tick() {
+    var t = (Date.now() - startTime) / 1000;
+    drawFrame(t);
+    // Keep running until past all cards (plus 1s buffer for clean exit).
+    if (t < totalCardDur + 1) requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

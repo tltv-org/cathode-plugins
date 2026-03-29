@@ -1,0 +1,7 @@
+{
+    "name": "bars-silent",
+    "description": "SMPTE color bars with silence — standby pattern",
+    "video_pattern": "smpte",
+    "audio_wave": "silence",
+    "text": "STANDBY"
+}

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    background: #000;
+  }
+  canvas {
+    display: block;
+    width: 1920px; height: 1080px;
+    image-rendering: auto;
+  }
+  #counter {
+    position: fixed;
+    bottom: 40px;
+    left: 0; right: 0;
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #counter span {
+    display: inline-block;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(0, 0, 0, 0.55);
+    padding: 10px 28px 8px;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+<canvas id="fractal" width="768" height="432"></canvas>
+<div id="counter"><span id="counter-text"></span></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+// CHANNEL ZERO — Genesis channel of the TLTV network
+// The clock is the content. Time is the state.
+//
+// Perturbation theory Mandelbrot. One point. One direction. Forever.
+//
+// Architecture:
+//   - BigInt fixed-point arithmetic for reference orbit (arbitrary precision)
+//   - Native float64 for per-pixel delta iteration (perturbation theory)
+//   - Canvas 2D rendering — no WebGL, no SwiftShader dependency
+//   - Zoom never resets. Runs for years.
+// ═══════════════════════════════════════════════════════════════════════
+
+var EPOCH = {{EPOCH}};
+var DURATION = {{DURATION}};
+var CONFIG = {{CONFIG_JSON}};
+
+// ── Zoom target ─────────────────────────────────────────────────────
+// Near the top of the Mandelbrot set (y ≈ 0.956), at the junction of
+// the main cardioid and period-3 bulb. Rich spirals, mini-Mandelbrots,
+// intricate branching at every scale.
+//
+// Stored as strings for arbitrary-precision parsing. These exact digits
+// are the truth — BigInt extends them with zeros at deeper precision.
+var TARGET_X_STR = "-0.101096";
+var TARGET_Y_STR = "0.956287";
+var TARGET_X = -0.101096;
+var TARGET_Y = 0.956287;
+
+// Zoom doubles every 10 minutes. Slow enough to be hypnotic,
+// fast enough to see movement.
+//   1 hour:  zoom ~64x
+//   1 day:   zoom ~10^43
+//   1 week:  zoom ~10^304
+//   1 year:  zoom ~10^15,862
+var ZOOM_RATE = 0.6931471805599453 / 600; // ln(2) / 600 seconds
+
+// ── Dimensions ──────────────────────────────────────────────────────
+var W = 768, H = 432;
+var canvas = document.getElementById('fractal');
+var ctx = canvas.getContext('2d');
+var imageData = ctx.createImageData(W, H);
+var pixels = imageData.data;
+
+
+// ── Fire-ice palette ────────────────────────────────────────────────
+// Black → deep blue → cyan → gold → orange → black.
+// Multi-segment with smooth transitions.
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function palette(t) {
+  t = ((t % 1) + 1) % 1;
+  var r, g, b;
+  if (t < 0.14) {
+    var p = t / 0.14;
+    r = 0; g = 0; b = lerp(5, 115, p);
+  } else if (t < 0.38) {
+    var p = (t - 0.14) / 0.24;
+    r = 0; g = lerp(0, 166, p); b = lerp(115, 242, p);
+  } else if (t < 0.58) {
+    var p = (t - 0.38) / 0.20;
+    r = lerp(0, 255, p); g = lerp(166, 242, p); b = lerp(242, 77, p);
+  } else if (t < 0.78) {
+    var p = (t - 0.58) / 0.20;
+    r = 255; g = lerp(242, 89, p); b = lerp(77, 0, p);
+  } else {
+    var p = (t - 0.78) / 0.22;
+    r = lerp(255, 0, p); g = lerp(89, 0, p); b = lerp(0, 5, p);
+  }
+  return [r | 0, g | 0, b | 0];
+}
+
+
+// ── BigInt fixed-point arithmetic ───────────────────────────────────
+// Arbitrary precision for reference orbit computation.
+// Value = mantissa / 10^BD_PREC
+
+var BD_PREC = 30;
+var BD_SCALE = 10n ** 30n;
+
+function setPrecision(digits) {
+  BD_PREC = digits;
+  BD_SCALE = 10n ** BigInt(digits);
+}
+
+function bdFromStr(s) {
+  var neg = s.charAt(0) === '-';
+  if (neg) s = s.slice(1);
+  var parts = s.split('.');
+  var intPart = parts[0] || '0';
+  var fracStr = (parts[1] || '');
+  // Pad or truncate fractional part to BD_PREC digits
+  if (fracStr.length < BD_PREC) {
+    fracStr = fracStr + '0'.repeat(BD_PREC - fracStr.length);
+  } else {
+    fracStr = fracStr.slice(0, BD_PREC);
+  }
+  var m = BigInt(intPart) * BD_SCALE + BigInt(fracStr);
+  return neg ? -m : m;
+}
+
+function bdToFloat(a) {
+  // Convert BigInt fixed-point to float64.
+  // Extract top ~15 significant digits for precision.
+  if (BD_PREC <= 15) return Number(a) / Number(BD_SCALE);
+  var extra = BD_PREC - 15;
+  var divisor = 10n ** BigInt(extra);
+  // Integer division drops low digits (fine — float64 only has 15 digits)
+  var reduced = a / divisor;
+  return Number(reduced) * 1e-15;
+}
+
+function bdMul(a, b) {
+  return a * b / BD_SCALE;
+}
+
+
+// ── Reference orbit ─────────────────────────────────────────────────
+// Computed at arbitrary precision using BigInt.
+// Stored as float64 arrays for the perturbation shader.
+
+var MAX_ORBIT = 1024;
+var orbitRe = new Float64Array(MAX_ORBIT);
+var orbitIm = new Float64Array(MAX_ORBIT);
+var orbitLen = 0;
+
+function computeReferenceOrbit(maxIter) {
+  var cx = bdFromStr(TARGET_X_STR);
+  var cy = bdFromStr(TARGET_Y_STR);
+  var zr = 0n, zi = 0n;
+  var len = 0;
+
+  orbitRe[0] = 0; orbitIm[0] = 0;
+  len = 1;
+
+  var limit = Math.min(maxIter, MAX_ORBIT - 1);
+  for (var i = 0; i < limit; i++) {
+    // z = z² + c  in BigInt arithmetic
+    var zr_sq = bdMul(zr, zr);
+    var zi_sq = bdMul(zi, zi);
+    var zr_zi = bdMul(zr, zi);
+    var new_zr = zr_sq - zi_sq + cx;
+    var new_zi = 2n * zr_zi + cy;
+    zr = new_zr;
+    zi = new_zi;
+
+    var fr = bdToFloat(zr);
+    var fi = bdToFloat(zi);
+    orbitRe[len] = fr;
+    orbitIm[len] = fi;
+    len++;
+
+    if (fr * fr + fi * fi > 1e8) break;
+  }
+
+  orbitLen = len;
+}
+
+
+// ── Standard Mandelbrot (float64, for low zoom) ────────────────────
+
+function renderStandard(scale, maxIter, colorShift) {
+  var pixelScale = scale / H;
+  var halfW = W * 0.5;
+  var halfH = H * 0.5;
+
+  for (var py = 0; py < H; py++) {
+    var ci = TARGET_Y - (py - halfH) * pixelScale;
+    for (var px = 0; px < W; px++) {
+      var cr = TARGET_X + (px - halfW) * pixelScale;
+
+      var zr = 0, zi = 0, zr2 = 0, zi2 = 0;
+      var iter = 0;
+      for (; iter < maxIter; iter++) {
+        zi = 2 * zr * zi + ci;
+        zr = zr2 - zi2 + cr;
+        zr2 = zr * zr;
+        zi2 = zi * zi;
+        if (zr2 + zi2 > 256) break;
+      }
+
+      var idx = (py * W + px) * 4;
+      if (iter >= maxIter) {
+        pixels[idx] = 0; pixels[idx + 1] = 0; pixels[idx + 2] = 0;
+      } else {
+        var mag2 = zr2 + zi2;
+        var smooth = iter + 1 - Math.log2(Math.log2(mag2));
+        var t = smooth * 0.025 + colorShift;
+        var c = palette(t);
+        pixels[idx] = c[0]; pixels[idx + 1] = c[1]; pixels[idx + 2] = c[2];
+      }
+      pixels[idx + 3] = 255;
+    }
+  }
+}
+
+
+// ── Perturbation Mandelbrot (for deep zoom) ─────────────────────────
+// Per-pixel delta iteration using pre-computed reference orbit.
+// δ_{n+1} = 2·Z_n·δ_n + δ_n² + δc
+
+function renderPerturbation(scale, maxIter, colorShift) {
+  var pixelScale = scale / H;
+  var halfW = W * 0.5;
+  var halfH = H * 0.5;
+  var maxN = Math.min(maxIter, orbitLen - 1);
+
+  for (var py = 0; py < H; py++) {
+    var baseDci = -(py - halfH) * pixelScale;
+    for (var px = 0; px < W; px++) {
+      var dcr = (px - halfW) * pixelScale;
+      var dci = baseDci;
+
+      var dr = 0, di = 0;
+      var iter = 0;
+
+      for (; iter < maxN; iter++) {
+        var Zr = orbitRe[iter];
+        var Zi = orbitIm[iter];
+
+        // δ_{n+1} = 2·Z_n·δ_n + δ_n² + δc
+        var tdr = 2 * (Zr * dr - Zi * di) + dr * dr - di * di + dcr;
+        var tdi = 2 * (Zr * di + Zi * dr) + 2 * dr * di + dci;
+        dr = tdr;
+        di = tdi;
+
+        // Escape test: |Z_n + δ_n|² > bailout
+        var tzr = orbitRe[iter + 1] + dr;
+        var tzi = orbitIm[iter + 1] + di;
+        if (tzr * tzr + tzi * tzi > 256) { iter++; break; }
+      }
+
+      var idx = (py * W + px) * 4;
+      if (iter >= maxN) {
+        pixels[idx] = 0; pixels[idx + 1] = 0; pixels[idx + 2] = 0;
+      } else {
+        var fzr = orbitRe[iter] + dr;
+        var fzi = orbitIm[iter] + di;
+        var mag2 = fzr * fzr + fzi * fzi;
+        var smooth = iter + 1 - Math.log2(Math.log2(mag2));
+        var t = smooth * 0.025 + colorShift;
+        var c = palette(t);
+        pixels[idx] = c[0]; pixels[idx + 1] = c[1]; pixels[idx + 2] = c[2];
+      }
+      pixels[idx + 3] = 255;
+    }
+  }
+}
+
+
+// ── Vignette (post-process) ─────────────────────────────────────────
+
+function applyVignette() {
+  for (var py = 0; py < H; py++) {
+    var uy = py / H - 0.5;
+    var uy2 = uy * uy;
+    for (var px = 0; px < W; px++) {
+      var ux = px / W - 0.5;
+      var d2 = (ux * ux + uy2) * 1.96; // 1.4²
+      var vig = 1 - 0.3 * d2;
+      var idx = (py * W + px) * 4;
+      pixels[idx]     = (pixels[idx]     * vig) | 0;
+      pixels[idx + 1] = (pixels[idx + 1] * vig) | 0;
+      pixels[idx + 2] = (pixels[idx + 2] * vig) | 0;
+    }
+  }
+}
+
+
+// ── Render loop ─────────────────────────────────────────────────────
+
+var PERTURB_ZOOM = 1e8; // Switch to perturbation at this zoom
+var lastOrbitPrecision = 0;
+var lastOrbitMaxIter = 0;
+
+function render() {
+  var now = Date.now() / 1000;
+  var elapsed = now - EPOCH;
+  if (elapsed < 0) elapsed = 0;
+
+  var zoom = Math.exp(elapsed * ZOOM_RATE);
+  var scale = 2.5 / zoom;
+  var colorShift = elapsed * 0.004;
+
+  // Scale iterations with zoom depth — more detail deeper in
+  var maxIter = Math.min(512, Math.floor(128 + 40 * Math.log10(Math.max(1, zoom))));
+
+  if (zoom < PERTURB_ZOOM) {
+    // Standard float64 — good for the first ~7 hours
+    renderStandard(scale, maxIter, colorShift);
+  } else {
+    // Perturbation theory with BigInt reference orbit
+    var neededPrec = Math.ceil(Math.log10(zoom)) + 15;
+    if (neededPrec > BD_PREC || maxIter > lastOrbitMaxIter) {
+      if (neededPrec > BD_PREC) setPrecision(neededPrec);
+      computeReferenceOrbit(maxIter);
+      lastOrbitPrecision = BD_PREC;
+      lastOrbitMaxIter = maxIter;
+    }
+    renderPerturbation(scale, maxIter, colorShift);
+  }
+
+  applyVignette();
+  ctx.putImageData(imageData, 0, 0);
+
+  setTimeout(render, 83); // ~12fps target
+}
+
+
+// ── Uptime counter ──────────────────────────────────────────────────
+
+var counterEl = document.getElementById('counter-text');
+
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+function updateCounter() {
+  var elapsed = Date.now() / 1000 - EPOCH;
+  if (elapsed < 0) elapsed = 0;
+  elapsed = Math.floor(elapsed);
+
+  var d = Math.floor(elapsed / 86400);
+  var h = Math.floor((elapsed % 86400) / 3600);
+  var m = Math.floor((elapsed % 3600) / 60);
+  var s = elapsed % 60;
+
+  counterEl.textContent = '\u25B2 ' + d + 'd ' + pad2(h) + 'h ' + pad2(m) + 'm ' + pad2(s) + 's';
+}
+
+setInterval(updateCounter, 1000);
+updateCounter();
+render();
+</script>
+</body>
+</html>

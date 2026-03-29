@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; }
+
+  /* ── ws4k style (WeatherStar 4000) ────────────────────────────────── */
+  body.ws4k {
+    background: linear-gradient(180deg, #001030 0%, #002060 40%, #001848 100%);
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    color: #fff;
+  }
+  .ws4k .header-bar {
+    background: linear-gradient(90deg, #c06000 0%, #e08020 50%, #c06000 100%);
+    color: #ffe840; height: 72px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 40px;
+    border-bottom: 3px solid #ffd000;
+  }
+  .ws4k .header-bar .title { font-size: 32px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+  .ws4k .header-bar .clock { font-size: 36px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+  .ws4k .content { padding: 30px 60px; }
+  .ws4k .location-name { font-size: 36px; color: #ffd000; margin-bottom: 16px; text-shadow: 1px 1px 3px rgba(0,0,0,0.5); }
+  .ws4k .temp-big { font-size: 120px; color: #fff; line-height: 1; margin: 10px 0; text-shadow: 3px 3px 6px rgba(0,0,0,0.5); }
+  .ws4k .temp-unit { font-size: 48px; color: #ffd000; vertical-align: super; }
+  .ws4k .conditions-text { font-size: 36px; color: #ffe840; margin: 8px 0 20px; }
+  .ws4k .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 60px; font-size: 26px; }
+  .ws4k .detail-label { color: #90b0d0; }
+  .ws4k .detail-value { color: #fff; }
+  .ws4k .forecast-row { display: flex; justify-content: space-between; padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1); font-size: 28px; }
+  .ws4k .forecast-row .period { color: #ffd000; width: 160px; }
+  .ws4k .forecast-row .hi { color: #ff8040; width: 100px; text-align: right; }
+  .ws4k .forecast-row .lo { color: #60a0ff; width: 100px; text-align: right; }
+  .ws4k .forecast-row .cond { color: #c0d0e0; flex: 1; text-align: right; }
+  .ws4k .screen-title { font-size: 30px; color: #ffd000; margin-bottom: 20px;
+    border-bottom: 2px solid #c06000; padding-bottom: 8px; }
+  .ws4k .almanac-row { font-size: 28px; padding: 12px 0; }
+  .ws4k .almanac-label { color: #90b0d0; display: inline-block; width: 320px; }
+  .ws4k .almanac-value { color: #fff; }
+  .ws4k .crawl-bar {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 56px;
+    background: linear-gradient(90deg, #001848 0%, #002868 50%, #001848 100%);
+    border-top: 2px solid #3060a0; overflow: hidden;
+    display: flex; align-items: center;
+  }
+  .ws4k .crawl-text { font-size: 24px; color: #ffe840; white-space: nowrap; position: absolute; }
+  .ws4k .scan-lines { opacity: 0.06; }
+
+  /* ── cable style (old-school cable TV) ─────────────────────────────── */
+  body.cable {
+    background: #004d00; /* green */
+    font-family: 'VT323', 'Courier New', monospace;
+    color: #fff; text-transform: uppercase;
+  }
+  .cable .header-bar {
+    background: #005500; height: 72px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 40px;
+    border-bottom: 3px solid #00aa00;
+  }
+  .cable .header-bar .title { font-size: 38px; font-weight: bold; }
+  .cable .header-bar .clock { font-size: 42px; letter-spacing: 4px; }
+  .cable .content {
+    margin: 0; padding: 24px 80px;
+    position: absolute; top: 75px; bottom: 130px; left: 0; right: 0;
+  }
+  .cable .content.page-even { background: #00006D; }
+  .cable .content.page-odd { background: #6D0000; }
+  .cable .location-name { font-size: 38px; margin-bottom: 12px; text-align: center; }
+  .cable .temp-big { font-size: 100px; text-align: center; line-height: 1; margin: 8px 0; }
+  .cable .temp-unit { font-size: 42px; }
+  .cable .conditions-text { font-size: 36px; text-align: center; margin: 8px 0 16px; }
+  .cable .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 40px; font-size: 30px; }
+  .cable .detail-label { color: #ccc; }
+  .cable .detail-value { color: #fff; text-align: right; }
+  .cable .forecast-row { display: flex; justify-content: space-between; padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.15); font-size: 30px; }
+  .cable .forecast-row .period { width: 160px; }
+  .cable .forecast-row .hi { width: 100px; text-align: right; }
+  .cable .forecast-row .lo { width: 100px; text-align: right; }
+  .cable .forecast-row .cond { flex: 1; text-align: right; }
+  .cable .screen-title { font-size: 34px; text-align: center; margin-bottom: 16px;
+    border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 6px; }
+  .cable .almanac-row { font-size: 30px; padding: 10px 0; }
+  .cable .almanac-label { display: inline-block; width: 320px; color: #ccc; }
+  .cable .almanac-value { color: #fff; }
+  .cable .crawl-bar {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 56px;
+    background: #005500; border-top: 3px solid #00aa00;
+    overflow: hidden; display: flex; align-items: center;
+  }
+  .cable .crawl-text { font-size: 28px; color: #fff; white-space: nowrap; position: absolute; }
+  .cable .scan-lines { opacity: 0.1; }
+
+  /* ── minimal style ────────────────────────────────────────────────── */
+  body.minimal {
+    background: #0a0a0a;
+    font-family: 'Share Tech Mono', 'Courier New', monospace;
+    color: #e0e0e0;
+  }
+  .minimal .header-bar {
+    background: transparent; height: 60px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 60px;
+    border-bottom: 1px solid #222;
+  }
+  .minimal .header-bar .title { font-size: 24px; color: #00ffaa; }
+  .minimal .header-bar .clock { font-size: 28px; color: #666; }
+  .minimal .content { padding: 40px 80px; }
+  .minimal .location-name { font-size: 28px; color: #00ffaa; margin-bottom: 20px; }
+  .minimal .temp-big { font-size: 96px; color: #fff; line-height: 1; margin: 10px 0; }
+  .minimal .temp-unit { font-size: 36px; color: #00ffaa; }
+  .minimal .conditions-text { font-size: 28px; color: #888; margin: 8px 0 24px; }
+  .minimal .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 60px; font-size: 22px; }
+  .minimal .detail-label { color: #555; }
+  .minimal .detail-value { color: #ccc; }
+  .minimal .forecast-row { display: flex; justify-content: space-between; padding: 10px 0;
+    border-bottom: 1px solid #1a1a1a; font-size: 24px; }
+  .minimal .forecast-row .period { color: #00ffaa; width: 160px; }
+  .minimal .forecast-row .hi { color: #ff6644; width: 100px; text-align: right; }
+  .minimal .forecast-row .lo { color: #4488ff; width: 100px; text-align: right; }
+  .minimal .forecast-row .cond { color: #888; flex: 1; text-align: right; }
+  .minimal .screen-title { font-size: 24px; color: #00ffaa; margin-bottom: 20px;
+    border-bottom: 1px solid #222; padding-bottom: 8px; }
+  .minimal .almanac-row { font-size: 22px; padding: 12px 0; }
+  .minimal .almanac-label { color: #555; display: inline-block; width: 320px; }
+  .minimal .almanac-value { color: #ccc; }
+  .minimal .crawl-bar {
+    position: absolute; bottom: 0; left: 0; width: 100%; height: 48px;
+    background: #111; border-top: 1px solid #222;
+    overflow: hidden; display: flex; align-items: center;
+  }
+  .minimal .crawl-text { font-size: 20px; color: #00ffaa; white-space: nowrap; position: absolute; }
+  .minimal .scan-lines { display: none; }
+
+  /* ── shared ────────────────────────────────────────────────────────── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .scan-lines {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px
+    );
+    pointer-events: none; z-index: 90;
+  }
+  #fade-out {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000; opacity: 0; pointer-events: none; z-index: 100;
+  }
+  .noaa-loading {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 32px; color: #ffd000;
+  }
+</style>
+</head>
+<body class="ws4k">
+
+<div class="header-bar">
+  <div class="title" id="header-title">WEATHER SERVICE</div>
+  <div class="clock" id="clock">00:00:00</div>
+</div>
+
+<!-- Screen 1: Current Conditions -->
+<div class="content screen" id="screen-current">
+  <div class="location-name" id="loc-name"></div>
+  <div>
+    <span class="temp-big" id="cur-temp"></span>
+    <span class="temp-unit" id="cur-unit"></span>
+  </div>
+  <div class="conditions-text" id="cur-conditions"></div>
+  <div class="detail-grid">
+    <div><span class="detail-label">WIND</span></div>
+    <div><span class="detail-value" id="cur-wind"></span></div>
+    <div><span class="detail-label">HUMIDITY</span></div>
+    <div><span class="detail-value" id="cur-humidity"></span></div>
+    <div><span class="detail-label">PRESSURE</span></div>
+    <div><span class="detail-value" id="cur-pressure"></span></div>
+    <div><span class="detail-label">VISIBILITY</span></div>
+    <div><span class="detail-value" id="cur-visibility"></span></div>
+  </div>
+</div>
+
+<!-- Screen 2: Forecast -->
+<div class="content screen" id="screen-forecast">
+  <div class="screen-title">EXTENDED FORECAST</div>
+  <div id="forecast-rows"></div>
+</div>
+
+<!-- Screen 3: Almanac / Astronomical -->
+<div class="content screen" id="screen-almanac">
+  <div class="screen-title">ALMANAC</div>
+  <div id="almanac-content"></div>
+</div>
+
+<div class="crawl-bar">
+  <div class="crawl-text" id="crawl-text"></div>
+</div>
+
+<div class="scan-lines"></div>
+<div id="fade-out"></div>
+
+<div class="noaa-loading" id="noaa-loading" style="display:none;">
+  FETCHING WEATHER DATA...
+</div>
+
+<!-- Standalone defaults (used when template params are not provided) -->
+<script>
+window._cfg = {
+  DURATION: 120,
+  STYLE: 'ws4k',
+  WEATHER_DATA: {
+    location: {name: "DEMO STATION"},
+    current: {temp_f: 72, temp_c: 22, conditions: "PARTLY CLOUDY",
+              humidity: "45%", wind: "SW 8 MPH", pressure: "30.12 in",
+              dewpoint: "52\u00b0F", visibility: "10 MI"},
+    forecast: [
+      {period: "TODAY", hi: "78\u00b0F", lo: "62\u00b0F", conditions: "PARTLY CLOUDY"},
+      {period: "TONIGHT", hi: "", lo: "58\u00b0F", conditions: "CLEAR"},
+      {period: "TOMORROW", hi: "80\u00b0F", lo: "60\u00b0F", conditions: "SUNNY"},
+      {period: "FRIDAY", hi: "75\u00b0F", lo: "55\u00b0F", conditions: "SCATTERED SHOWERS"}
+    ],
+    astronomical: {sunrise: "6:42 AM", sunset: "7:58 PM",
+                   day_length: "13h 16m", atmosphere: "CLEAR"}
+  },
+  NOAA_LAT: null,
+  NOAA_LON: null,
+  UNITS: 'us',
+  CRAWL: 'CHANNEL ONE WEATHER SERVICE — LOCAL FORECAST AND CONDITIONS'
+};
+</script>
+
+<!-- Template overrides (substituted by html-source plugin when params
+     are provided; parse-fails silently in standalone mode) -->
+<script>
+window._cfg.DURATION     = {{DURATION}};
+window._cfg.STYLE        = '{{STYLE}}';
+window._cfg.WEATHER_DATA = {{WEATHER_DATA}};
+window._cfg.NOAA_LAT     = {{NOAA_LAT}};
+window._cfg.NOAA_LON     = {{NOAA_LON}};
+window._cfg.UNITS        = '{{UNITS}}';
+window._cfg.CRAWL        = '{{CRAWL}}';
+</script>
+
+<script>
+(function() {
+  // ── Configuration ─────────────────────────────────────────────────
+  var DURATION     = window._cfg.DURATION;
+  var STYLE        = window._cfg.STYLE;
+  var WEATHER_DATA = window._cfg.WEATHER_DATA;
+  var NOAA_LAT     = window._cfg.NOAA_LAT;
+  var NOAA_LON     = window._cfg.NOAA_LON;
+  var UNITS        = window._cfg.UNITS;
+  var CRAWL        = window._cfg.CRAWL;
+
+  // Apply style class from config (overrides default in <body>).
+  document.body.className = STYLE;
+
+  var startTime = Date.now();
+  var screens = ['screen-current', 'screen-forecast', 'screen-almanac'];
+  var currentScreen = 0;
+  var screenTime = 15000; // 15s per screen
+  var pageNum = 0; // for cable style alternating colors
+  var data = null;
+  var ended = false;
+
+  // ── Clock ─────────────────────────────────────────────────────────
+  function updateClock() {
+    if (ended) return;
+    var now = new Date();
+    var h = String(now.getHours()).padStart(2, '0');
+    var m = String(now.getMinutes()).padStart(2, '0');
+    var s = String(now.getSeconds()).padStart(2, '0');
+    document.getElementById('clock').textContent = h + ':' + m + ':' + s;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // ── Render weather data ───────────────────────────────────────────
+  function render(d) {
+    data = d;
+    if (!data || !data.location) return;
+
+    var loc = data.location;
+    var cur = data.current || {};
+    var fc = data.forecast || [];
+    var ast = data.astronomical || {};
+
+    // Header
+    var name = (loc.name || '').toUpperCase();
+    document.getElementById('header-title').textContent =
+      name + ' WEATHER';
+
+    // Current conditions
+    document.getElementById('loc-name').textContent = name;
+
+    var temp = cur.temperature;
+    var unit = cur.unit || 'C';
+    if (UNITS === 'us' && unit === 'C' && temp !== undefined) {
+      temp = Math.round(temp * 9 / 5 + 32);
+      unit = 'F';
+    }
+    document.getElementById('cur-temp').textContent =
+      temp !== undefined ? Math.round(temp) : '--';
+    document.getElementById('cur-unit').textContent = '\u00B0' + unit;
+    document.getElementById('cur-conditions').textContent =
+      cur.conditions || '';
+
+    var windStr = '';
+    if (cur.wind_speed > 0) {
+      windStr = (cur.wind_direction || '') + ' ' + cur.wind_speed +
+        ' ' + (cur.wind_unit || 'km/h');
+    } else {
+      windStr = 'CALM';
+    }
+    document.getElementById('cur-wind').textContent = windStr;
+    document.getElementById('cur-humidity').textContent =
+      cur.humidity !== undefined ? cur.humidity + '%' : '--';
+    document.getElementById('cur-pressure').textContent =
+      cur.pressure > 0
+        ? cur.pressure + ' ' + (cur.pressure_unit || 'hPa')
+        : '--';
+    document.getElementById('cur-visibility').textContent =
+      cur.visibility || '--';
+
+    // Forecast
+    var fRows = document.getElementById('forecast-rows');
+    fRows.innerHTML = '';
+    for (var i = 0; i < fc.length; i++) {
+      var hi = fc[i].high;
+      var lo = fc[i].low;
+      var u2 = cur.unit || 'C';
+      if (UNITS === 'us' && u2 === 'C') {
+        hi = Math.round(hi * 9 / 5 + 32);
+        lo = Math.round(lo * 9 / 5 + 32);
+        u2 = 'F';
+      }
+      var row = document.createElement('div');
+      row.className = 'forecast-row';
+      row.innerHTML =
+        '<span class="period">' + fc[i].period + '</span>' +
+        '<span class="hi">H ' + Math.round(hi) + '\u00B0</span>' +
+        '<span class="lo">L ' + Math.round(lo) + '\u00B0</span>' +
+        '<span class="cond">' + fc[i].conditions + '</span>';
+      fRows.appendChild(row);
+    }
+
+    // Almanac
+    var alm = document.getElementById('almanac-content');
+    alm.innerHTML = '';
+    var rows = [];
+    if (ast.sunrise) rows.push(['SUNRISE', ast.sunrise]);
+    if (ast.sunset) rows.push(['SUNSET', ast.sunset]);
+    if (ast.day_length) rows.push(['DAY LENGTH', ast.day_length]);
+    if (ast.atmosphere) rows.push(['ATMOSPHERE', ast.atmosphere]);
+    // Add alerts
+    var alerts = data.alerts || [];
+    for (var a = 0; a < alerts.length; a++) {
+      rows.push(['ALERT', alerts[a]]);
+    }
+    for (var r = 0; r < rows.length; r++) {
+      var aRow = document.createElement('div');
+      aRow.className = 'almanac-row';
+      aRow.innerHTML =
+        '<span class="almanac-label">' + rows[r][0] + '</span>' +
+        '<span class="almanac-value">' + rows[r][1] + '</span>';
+      alm.appendChild(aRow);
+    }
+
+    // Show first screen
+    showScreen(0);
+  }
+
+  // ── Screen rotation ───────────────────────────────────────────────
+  function showScreen(idx) {
+    for (var i = 0; i < screens.length; i++) {
+      var el = document.getElementById(screens[i]);
+      if (el) {
+        el.classList.remove('active');
+        el.classList.remove('page-even');
+        el.classList.remove('page-odd');
+      }
+    }
+    var active = document.getElementById(screens[idx]);
+    if (active) {
+      active.classList.add('active');
+      // Cable style: alternate blue/red
+      if (STYLE === 'cable') {
+        active.classList.add(pageNum % 2 === 0 ? 'page-even' : 'page-odd');
+      }
+    }
+    currentScreen = idx;
+    pageNum++;
+  }
+
+  function nextScreen() {
+    if (ended) return;
+    var next = (currentScreen + 1) % screens.length;
+    showScreen(next);
+  }
+
+  // ── Scrolling crawl bar ───────────────────────────────────────────
+  function startCrawl(text) {
+    var el = document.getElementById('crawl-text');
+    // Double the text for seamless looping
+    var fullText = text + '          ' + text + '          ';
+    el.textContent = fullText;
+    var pos = 1920;
+    var halfWidth = el.offsetWidth / 2;
+
+    function tick() {
+      if (ended) return;
+      pos -= 2;
+      if (pos < -halfWidth) pos = 0;
+      el.style.transform = 'translateX(' + pos + 'px)';
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // ── NOAA API fetch ────────────────────────────────────────────────
+  async function fetchNOAA(lat, lon) {
+    var ua = 'TLTV Weather Generator (github.com/tltv)';
+    try {
+      document.getElementById('noaa-loading').style.display = 'block';
+
+      // Step 1: Grid point lookup
+      var pts = await fetch(
+        'https://api.weather.gov/points/' + lat + ',' + lon,
+        { headers: { 'User-Agent': ua, 'Accept': 'application/geo+json' } }
+      ).then(function(r) { return r.json(); });
+
+      var props = pts.properties || {};
+      var city = props.relativeLocation &&
+        props.relativeLocation.properties
+        ? props.relativeLocation.properties.city +
+          ', ' + props.relativeLocation.properties.state
+        : lat + ', ' + lon;
+
+      // Step 2: Current observations
+      var stationsUrl = props.observationStations;
+      var stations = await fetch(stationsUrl, {
+        headers: { 'User-Agent': ua }
+      }).then(function(r) { return r.json(); });
+
+      var obsUrl = stations.observationStations[0] +
+        '/observations/latest';
+      var obs = await fetch(obsUrl, {
+        headers: { 'User-Agent': ua }
+      }).then(function(r) { return r.json(); });
+
+      var op = obs.properties || {};
+
+      // Step 3: Forecast
+      var fcUrl = props.forecast;
+      var forecast = await fetch(fcUrl, {
+        headers: { 'User-Agent': ua }
+      }).then(function(r) { return r.json(); });
+
+      var periods = (forecast.properties || {}).periods || [];
+
+      // Convert to our data format
+      var tempC = op.temperature && op.temperature.value;
+      var windSpd = op.windSpeed && op.windSpeed.value;
+      var windDir = op.windDirection && op.windDirection.value;
+      // wind direction: degrees to compass
+      var dirs = ['N','NE','E','SE','S','SW','W','NW'];
+      var windCompass = windDir != null
+        ? dirs[Math.round(windDir / 45) % 8] : '';
+      var humidity = op.relativeHumidity && op.relativeHumidity.value;
+      var pressure = op.barometricPressure &&
+        op.barometricPressure.value;
+      // NOAA pressure is in Pa, convert to hPa
+      if (pressure) pressure = Math.round(pressure / 100 * 100) / 100;
+
+      // Build forecast array from NOAA periods
+      var fcArr = [];
+      for (var i = 0; i < Math.min(periods.length, 5); i++) {
+        var p = periods[i];
+        fcArr.push({
+          period: (p.name || 'Period ' + (i + 1)).toUpperCase(),
+          high: p.isDaytime ? p.temperature : null,
+          low: p.isDaytime ? null : p.temperature,
+          conditions: (p.shortForecast || '').toUpperCase()
+        });
+      }
+      // Merge day/night pairs for high/low
+      var mergedFc = [];
+      for (var j = 0; j < fcArr.length; j += 2) {
+        var day = fcArr[j];
+        var night = j + 1 < fcArr.length ? fcArr[j + 1] : null;
+        mergedFc.push({
+          period: day.period,
+          high: day.high != null ? day.high : (night ? night.high : null),
+          low: night ? (night.low != null ? night.low : night.high) :
+            (day.low != null ? day.low : day.high),
+          conditions: day.conditions
+        });
+      }
+
+      document.getElementById('noaa-loading').style.display = 'none';
+
+      return {
+        location: { name: city, region: 'United States' },
+        current: {
+          temperature: tempC != null ? Math.round(tempC * 10) / 10 : null,
+          unit: 'C',
+          humidity: humidity != null ? Math.round(humidity) : null,
+          wind_speed: windSpd != null ? Math.round(windSpd) : 0,
+          wind_direction: windCompass,
+          wind_unit: 'km/h',
+          pressure: pressure || 0,
+          pressure_unit: 'hPa',
+          conditions: (op.textDescription || '').toUpperCase(),
+          visibility: op.visibility && op.visibility.value
+            ? Math.round(op.visibility.value / 1000) + ' km' : '--'
+        },
+        forecast: mergedFc.slice(0, 5),
+        alerts: [],
+        astronomical: {
+          sunrise: '--', sunset: '--',
+          day_length: '--', atmosphere: 'N2 78%, O2 21%'
+        }
+      };
+    } catch (err) {
+      document.getElementById('noaa-loading').style.display = 'none';
+      console.error('NOAA fetch failed:', err);
+      return null;
+    }
+  }
+
+  // ── End sequence ──────────────────────────────────────────────────
+  function checkEnd() {
+    if (ended) return;
+    var elapsed = (Date.now() - startTime) / 1000;
+    if (elapsed > DURATION - 5) {
+      var progress = (elapsed - (DURATION - 5)) / 5;
+      document.getElementById('fade-out').style.opacity =
+        Math.min(1, progress);
+      if (progress >= 1) { ended = true; return; }
+    }
+    requestAnimationFrame(checkEnd);
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────
+  async function boot() {
+    if (NOAA_LAT != null && NOAA_LON != null) {
+      var noaaData = await fetchNOAA(NOAA_LAT, NOAA_LON);
+      if (noaaData) {
+        render(noaaData);
+        // Rebuild crawl from live data
+        var loc = noaaData.location.name || '';
+        var cur = noaaData.current || {};
+        var t = cur.temperature;
+        var u = cur.unit || 'C';
+        if (UNITS === 'us' && u === 'C' && t != null) {
+          t = Math.round(t * 9 / 5 + 32); u = 'F';
+        }
+        CRAWL = loc.toUpperCase() + ' WEATHER     ///     CURRENT: ' +
+          (t != null ? t : '--') + '\u00B0' + u + '  ' +
+          (cur.conditions || '');
+      } else {
+        // NOAA failed — show error screen
+        document.getElementById('noaa-loading').textContent =
+          'WEATHER DATA UNAVAILABLE';
+        document.getElementById('noaa-loading').style.display = 'block';
+      }
+    } else if (WEATHER_DATA) {
+      render(WEATHER_DATA);
+    }
+
+    // Start crawl
+    startCrawl(CRAWL || 'WEATHER SERVICE');
+
+    // Start screen rotation
+    setInterval(nextScreen, screenTime);
+
+    // Start end sequence check
+    requestAnimationFrame(checkEnd);
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

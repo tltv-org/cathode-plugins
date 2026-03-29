@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 1920px; height: 1080px;
+    overflow: hidden;
+    background: #000;
+    font-family: 'Times New Roman', 'Georgia', serif;
+  }
+  #text {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: #d4d0c8;
+    font-size: 64px;
+    font-style: italic;
+    text-align: center;
+    opacity: 0;
+    transition: none;
+    text-shadow: 0 0 30px rgba(180, 175, 160, 0.3);
+    max-width: 1400px;
+    line-height: 1.4;
+  }
+  #grain {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0.04;
+    pointer-events: none;
+  }
+  #vignette {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.7) 100%);
+    pointer-events: none;
+  }
+  #fade-out {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+<canvas id="grain" width="1920" height="1080"></canvas>
+<div id="vignette"></div>
+<div id="text"></div>
+<div id="fade-out"></div>
+
+<script>
+(function() {
+  var DURATION = {{DURATION}};
+  var startTime = Date.now();
+
+  var phrases = [
+    "Who's there?",
+    "Is anyone listening?",
+    "The signal is open...",
+    "We are between stations...",
+    "Something stirs in the static...",
+    "Do not adjust your set.",
+    "The frequency is changing...",
+    "Can you hear us?",
+    "We've been waiting...",
+    "The veil is thin tonight...",
+    "Stay with us...",
+    "The broadcast continues...",
+  ];
+
+  var textEl = document.getElementById('text');
+  var fadeOutEl = document.getElementById('fade-out');
+  var phraseIndex = 0;
+  var currentOpacity = 0;
+  var targetOpacity = 0;
+  var phase = 'waiting'; // waiting, fading-in, holding, fading-out
+  var phaseTimer = 0;
+  var FADE_IN_MS = 3000;
+  var HOLD_MS = 4000;
+  var FADE_OUT_MS = 2500;
+  var GAP_MS = 2000;
+  var ended = false;
+
+  function nextPhrase() {
+    textEl.textContent = phrases[phraseIndex % phrases.length];
+    phraseIndex++;
+    phase = 'fading-in';
+    phaseTimer = Date.now();
+    targetOpacity = 1;
+  }
+
+  // Start first phrase after a brief pause
+  setTimeout(nextPhrase, 2000);
+
+  function updateText() {
+    if (ended) return;
+
+    var now = Date.now();
+    var elapsed = now - phaseTimer;
+    var totalElapsed = (now - startTime) / 1000;
+
+    // End sequence: fade to black in last 5 seconds
+    if (totalElapsed > DURATION - 5) {
+      var fadeProgress = (totalElapsed - (DURATION - 5)) / 5;
+      fadeOutEl.style.opacity = Math.min(1, fadeProgress);
+      if (fadeProgress >= 1) { ended = true; return; }
+    }
+
+    // Don't start new phrases in last 15 seconds
+    var canStartNew = totalElapsed < DURATION - 15;
+
+    if (phase === 'fading-in') {
+      currentOpacity = Math.min(1, elapsed / FADE_IN_MS);
+      if (elapsed >= FADE_IN_MS) {
+        currentOpacity = 1;
+        phase = 'holding';
+        phaseTimer = now;
+      }
+    } else if (phase === 'holding') {
+      if (elapsed >= HOLD_MS) {
+        phase = 'fading-out';
+        phaseTimer = now;
+      }
+    } else if (phase === 'fading-out') {
+      currentOpacity = Math.max(0, 1 - (elapsed / FADE_OUT_MS));
+      if (elapsed >= FADE_OUT_MS) {
+        currentOpacity = 0;
+        phase = 'waiting';
+        phaseTimer = now;
+      }
+    } else if (phase === 'waiting') {
+      if (elapsed >= GAP_MS && canStartNew) {
+        nextPhrase();
+      }
+    }
+
+    textEl.style.opacity = currentOpacity;
+    requestAnimationFrame(updateText);
+  }
+
+  requestAnimationFrame(updateText);
+
+  // Film grain effect
+  var grainCanvas = document.getElementById('grain');
+  var ctx = grainCanvas.getContext('2d');
+  function drawGrain() {
+    var w = 1920, h = 1080;
+    var imageData = ctx.createImageData(w, h);
+    var data = imageData.data;
+    // Sparse grain — only update ~5% of pixels for performance
+    for (var i = 0; i < w * h * 0.05; i++) {
+      var idx = (Math.random() * w * h | 0) * 4;
+      var v = Math.random() * 255 | 0;
+      data[idx] = v;
+      data[idx + 1] = v;
+      data[idx + 2] = v;
+      data[idx + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+  // Update grain at ~8fps (not every frame — it's subtle)
+  setInterval(drawGrain, 125);
+  drawGrain();
+})();
+</script>
+</body>
+</html>

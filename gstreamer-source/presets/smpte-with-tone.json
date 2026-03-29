@@ -1,0 +1,9 @@
+{
+    "name": "smpte-with-tone",
+    "description": "SMPTE color bars with 1kHz tone — classic test pattern",
+    "video_pattern": "smpte",
+    "audio_wave": "sine",
+    "audio_freq": 1000,
+    "audio_volume": 0.3,
+    "text": null
+}

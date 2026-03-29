@@ -1,0 +1,7 @@
+# Shared plugin dependencies.
+# Installed at cathode startup from each plugin's requirements.txt,
+# or manually: pip install -r requirements.txt
+#
+# Individual plugins may have their own requirements.txt for
+# plugin-specific deps. This file covers shared deps.
+Pillow>=10.0.0
