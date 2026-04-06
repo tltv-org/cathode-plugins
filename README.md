@@ -1,15 +1,15 @@
 # Cathode Plugins
 
-Optional plugins for the [cathode](https://github.com/tltv-org/cathode) TLTV server. Cathode works without any plugins — these extend it with source types, overlays, and content tools.
+Optional plugins for the [cathode](https://git.plutoniumtech.com/tltv/cathode) TLTV server. Cathode works without any plugins — these extend it with source types, overlays, and content tools.
 
 ## Plugins
 
 | Plugin | Category | What it adds |
 |---|---|---|
-| **html-source** | source, content | HTML/CSS/JS rendering via WPE WebKit (wpesrc) |
-| **script-source** | source, content | Python script live rendering via appsrc |
-| **gstreamer-source** | source, content | Native GStreamer pattern/generator sources |
-| **overlay** | graphics | Post-mix overlays: text, image bugs, SVG |
+| **html-source** | source, content | HTML/CSS/JS rendering via WPE WebKit (wpesrc). 7 HTML presets. |
+| **script-source** | source, content | Python script live rendering (appsrc) + file generation. 8 presets. |
+| **gstreamer-source** | source, content | Native GStreamer pattern/generator sources. 3 JSON presets. |
+| **overlay** | graphics | Post-mix overlays: text, image bugs (PNG/JPEG), SVG. |
 
 All source plugins register: source types, schedule block types, presets, and generate handlers.
 All plugins expose settings via `GET/PATCH /api/plugins/{name}/settings`.
@@ -82,33 +82,17 @@ PUT /api/plugins/{name}/presets/{preset}     # Create/update
 DELETE /api/plugins/{name}/presets/{preset}  # Delete
 ```
 
-**html-source** — 7 HTML presets:
-- `bumps` — Adult Swim-style text card interstitials
-- `seance` — dark ethereal text with film grain
-- `weather` — retro weather channel display
-- `channel_zero` — Mandelbrot zoom + uptime counter
-- `channel-one-intro` — channel intro card
-- `game-of-life` — Conway's Game of Life
-- `mandelbrot-zoom` — animated Mandelbrot fractal
+**html-source** (7 HTML files):
+bumps, seance, weather, channel_zero, channel-one-intro, game-of-life, mandelbrot-zoom
 
-**script-source** — 8 Python presets:
-- `geometric_shapes` — pulsing concentric shapes with color cycling
-- `color_bars_glitch` — glitched SMPTE color bars
-- `ascii_text_wave` — ASCII text wave animation
-- `emergency_broadcast` — EBS alert screen with colored bars
-- `pixel_sort_corruption` — pixel sorting glitch art
-- `retro_computer_boot` — retro computer boot sequence
-- `scan_line_tv_static` — TV static with scan lines
-- `youtube_poop_chaos` — chaotic visual effects
+**script-source** (8 Python scripts):
+geometric_shapes, color_bars_glitch, ascii_text_wave, emergency_broadcast, pixel_sort_corruption, retro_computer_boot, scan_line_tv_static, youtube_poop_chaos
 
-**gstreamer-source** — 3 JSON presets:
-- `smpte-with-tone` — SMPTE color bars + 1kHz sine tone
-- `bars-silent` — SMPTE bars with "STANDBY" text, silence
-- `snow` — static/snow + white noise
+**gstreamer-source** (3 JSON configs):
+smpte-with-tone, bars-silent, snow
 
-**overlay** — 2 JSON presets:
-- `bugs/channel-id` — channel ID bug config
-- `tickers/default` — default ticker config
+**overlay** (2 JSON configs):
+bugs/channel-id, tickers/default
 
 ## Media Generation
 
@@ -145,6 +129,22 @@ python3 -m venv .venv
 output, HTML template substitution, overlay route handlers, and syntax
 checks for all Python/JSON/HTML files.
 
+## Links
+
+- [timelooptv.org](https://timelooptv.org) — Project homepage
+- [Spec](https://spec.timelooptv.org) — Protocol specification
+- [Demo](https://demo.timelooptv.org) — Live demo
+- [GitHub](https://github.com/tltv-org) — All repositories
+- [cathode](https://github.com/tltv-org/cathode) — TLTV reference server
+
 ## License
 
-MIT -- see [LICENSE](LICENSE).
+[MIT](LICENSE)
+
+## Future Plugins
+
+- **ffmpeg-gen** — JSON→ffmpeg→MP4 file generation
+- **auto-schedule** — automatic bumper/ident insertion
+- **rtmp** — RTMP listener for OBS push ingest
+- **srt** — SRT source + output
+- **playlist-tools** — sort, pad, deduplicate playlists
